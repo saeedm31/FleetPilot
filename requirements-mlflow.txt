@@ -1,0 +1,2 @@
+# Tracking, model registry client and tracing (used when MLFLOW_TRACKING_URI is set)
+mlflow-skinny>=3.1,<3.2

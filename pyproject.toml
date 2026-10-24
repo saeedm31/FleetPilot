@@ -1,0 +1,30 @@
+[project]
+name = "fleetpilot"
+version = "0.1.0"
+description = "Which fleet customers will order new trucks, why, and what to say: ML + an AI sales copilot (simulated data)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["data", "demo"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "SIM"]
+ignore = [
+  "S101",   # assert is fine in tests
+  "S311",   # random numbers are for simulation, not security
+  "S608",   # SQL is built from fixed fragments; values go through parameters; agent SQL is read-only and authorised
+  "B008",
+  "SIM108",
+  "E501",   # the formatter handles line length; long strings and SQL stay readable
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

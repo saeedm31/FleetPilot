@@ -1,0 +1,41 @@
+# docker compose up -d                  -> app on http://localhost:8501, MLflow on http://localhost:5000
+# docker compose run --rm pipeline      -> rebuild data, retrain, register the model in MLflow
+# docker compose run --rm app python -m fleetpilot eval --live     (needs ANTHROPIC_API_KEY in .env)
+x-common: &common
+  environment:
+    FLEETPILOT_DATA: /data
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+    LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    AWS_REGION: ${AWS_REGION:-eu-north-1}
+    AGENT_MODEL: ${AGENT_MODEL:-claude-sonnet-4-6}
+    PSEUDONYM_KEY: ${PSEUDONYM_KEY:-change-me}
+    MONTHLY_BUDGET_EUR: ${MONTHLY_BUDGET_EUR:-10}
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  volumes:
+    - data:/data
+  depends_on:
+    mlflow:
+      condition: service_healthy
+
+services:
+  mlflow:
+    build: { context: ., target: mlflow }
+    ports: ["5000:5000"]
+    volumes: [mlflow:/mlflow]
+    restart: unless-stopped
+
+  pipeline:
+    <<: *common
+    build: { context: ., target: train }
+    profiles: ["train"]
+
+  app:
+    <<: *common
+    build: { context: ., target: app }
+    ports: ["8501:8501"]
+    restart: unless-stopped
+
+volumes:
+  data:
+  mlflow:
