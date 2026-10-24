@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install "ruff>=0.6"
+      - run: ruff check .
+      - run: ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+      - name: Build data and models, print scores
+        run: python -m fleetpilot build
+      - name: Offline evaluation (scripted model, checks the agent wiring)
+        run: python -m fleetpilot eval --out eval_offline.json
+      - run: python -m fleetpilot audit-verify
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all images
+        run: docker compose build
+      - name: Start MLflow and the app
+        run: |
+          docker compose up -d mlflow app
+          for i in $(seq 1 60); do curl -fs http://localhost:8501/_stcore/health && break; sleep 3; done
+          curl -fs http://localhost:8501/_stcore/health
+          curl -fs http://localhost:5000/health
+      - name: Run the training pipeline (logs the run and registers the model in MLflow)
+        run: docker compose run --rm pipeline
+      - name: Ask the copilot inside the app container (scripted model, traced in MLflow)
+        run: docker compose run --rm app python -m fleetpilot ask "Which customers in Portugal should I call first?" --scripted
+      - name: Check MLflow received the training run and the traces
+        run: |
+          curl -fs "http://localhost:5000/api/2.0/mlflow/experiments/search?max_results=20" | tee experiments.json
+          grep -q fleetpilot-purchase-likelihood experiments.json
+          grep -q fleetpilot-copilot experiments.json
+      - name: Containers run as non-root
+        run: test "$(docker compose run --rm app id -u)" = "1000"
+      - if: always()
+        run: docker compose logs --tail=80
+      - if: always()
+        run: docker compose down -v
