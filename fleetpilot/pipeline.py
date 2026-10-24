@@ -31,7 +31,12 @@ def build(settings: C.Settings | None = None, seed: int = C.SEED, n: int = C.N_C
     out = Path(s.data_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    customers, panel, deals = simulate(seed=seed, n=n)
+    # one extra month: "today" is the start of the month after the last full month of history,
+    # so this month's orders are already in the snapshot (a customer who just ordered isn't top of the list)
+    customers, panel, deals = simulate(seed=seed, n=n, months=C.N_MONTHS + 1)
+    now_month = C.N_MONTHS
+    deals = deals[deals["month"] < now_month].reset_index(drop=True)
+    panel.loc[panel["month"] >= now_month, ["won", "lost"]] = 0  # the future is unknown
     panel = add_label(panel, C.HORIZON)
     log.info("simulated %d customers, %d snapshots, %d deals", len(customers), len(panel), len(deals))
 
@@ -62,7 +67,6 @@ def build(settings: C.Settings | None = None, seed: int = C.SEED, n: int = C.N_C
     )
 
     # --- today: score every customer and explain it ---
-    now_month = int(panel["month"].max())
     now = panel[panel["month"] == now_month].set_index("cid").sort_index()
     now["score"] = model.predict(now)
     reasons = model.reasons(now, k=3)
