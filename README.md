@@ -20,18 +20,42 @@ with every number checked, logged and priced.
 
 ---
 
-## 💡 The problem
+## 💡 Why this app
 
-A truck maker's sales team can't call 2,000 fleet customers every month. Today many teams call the **oldest fleets
-first**. But a fleet buys when several things line up: trucks getting old *and* service costs rising, financing or a
-service contract ending, freight demand up, the last order long enough ago, and a good relationship with us.
+A truck maker sells to fleet owners: logistics firms, builders, delivery companies, city services. A new truck order
+is big (often several trucks at once), but it comes rarely and at a time the customer picks. If our rep calls too
+late, a competitor has already sent a quote. If the rep calls too early, the visit is wasted.
 
-FleetPilot does three things:
+The sales team has the data to see an order coming: fleet age, service costs and breakdowns, when financing and service
+contracts end, past orders, visits and quotes. But it sits in different systems, and nobody can read it for
+2,000 customers every month. So many teams fall back on a simple rule: **call the oldest fleets first**. That rule
+misses customers who buy for other reasons (a contract ending, a growing business, rising repair bills) and spends
+time on old fleets that are not ready to buy.
 
-1. **Ranks every customer** by the chance they order from us in the next 6 months, with the **reasons** in plain words.
-2. **Groups customers into segments** the team can plan around ("ageing trucks, high service costs").
-3. **Answers reps' questions** in a chat: *"Which customers in Portugal should I call first this week, and why?"*,
-   *"Draft a first email to C-3F9A21"*, *"How many deals did we lose to competitors?"*
+## ✅ What it does
+
+FleetPilot turns that data into a monthly call list a rep can trust, and a chat assistant to work with it.
+
+1. **Ranks every customer** by the chance they order new trucks from us in the next 6 months.
+2. **Explains each score** in plain words, e.g. *"financing ends for 40% of the fleet within 6 months"* or
+   *"service cost +18% vs a year ago"*, so the rep knows why to call and what to talk about.
+3. **Groups customers into segments** the team can plan around, e.g. *"high service costs, ageing trucks"* or
+   *"young trucks, growing"*.
+4. **Answers reps' questions** in a chat (an AI copilot built on Claude):
+   *"Which customers in Portugal should I call first this week, and why?"*, *"Draft a first email to C-3F9A21"*,
+   *"How many deals did we lose to competitors?"*. It reads only the data, and a check step makes sure every number
+   in the answer comes from that data.
+5. **Keeps a record of everything:** every question, tool call, answer and its cost goes to a tamper-evident audit
+   log and to MLflow, and a budget caps the AI spend.
+
+## 🎯 Why it matters
+
+- **Reach more buyers with the same calls:** calling the top 10% of the list reaches 33% of all buyers, vs 26% with
+  the "oldest fleets first" rule (on the simulated data). Same effort, about a quarter more buyers reached.
+- **Better calls:** the rep goes in knowing the reason (contract ending, costs rising) instead of a generic pitch.
+- **Less time digging in systems:** a question in the chat replaces a report request or a spreadsheet.
+- **Safe to use in a company:** customer names never reach the AI, the AI can only read, every number it gives is
+  checked and every step is logged, and costs are shown and capped. These are the things IT, legal and works councils ask about first.
 
 ## 🧠 How it works
 
