@@ -130,8 +130,9 @@ share of all buyers a rep reaches by calling the 10% highest-scored customers.
 | 📊 Can we trust it? | model vs simpler methods on unseen months, calibration, AI assistant test |
 | 🧾 Activity log | every AI question and step, with a tamper check |
 
-Demo mode works without a key (recorded real runs, or a scripted test model that shows the mechanics). Live mode
-uses your Anthropic key for the session only.
+**Modes:** **AI (Claude)** answers any question for visitors, using the owner's key from Streamlit secrets, capped
+per visitor and per day. **Demo** needs no key: a scripted test model that shows the mechanics for a few question
+types. **Live** uses your own Anthropic key for the session only.
 
 ## 🐳 Run it
 
