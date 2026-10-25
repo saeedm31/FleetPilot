@@ -7,6 +7,7 @@ import os
 from datetime import UTC, datetime
 
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -57,10 +58,37 @@ def load():
     hist = pd.read_csv(S.data_dir / "history.csv.gz")
     metrics = json.loads((S.data_dir / "metrics.json").read_text())
     segments = q("SELECT * FROM segments ORDER BY avg_score DESC")
-    return tb, pipeline, names, hist, metrics, segments
+    e = q("""SELECT s.customer_id, s.score, c.country, c.industry, c.segment, n.fleet_size, n.avg_age_years,
+                    n.share_over_6y, n.our_share, n.km_per_truck_year, n.service_cost_per_truck, n.service_cost_trend,
+                    n.fleet_growth_12m, n.breakdowns_3m, n.visits_3m, n.quotes_3m, n.months_since_last_order,
+                    n.orders_last_24m
+             FROM scores s JOIN customers c USING(customer_id) JOIN snapshot n USING(customer_id)""")
+    explore = pd.DataFrame(  # plain column names, so charts label themselves
+        {
+            "Customer": e["customer_id"],
+            "Country": e["country"],
+            "Industry": e["industry"],
+            "Customer group": e["segment"],
+            "Chance to order (%)": (100 * e["score"]).round(1),
+            "Trucks in fleet": e["fleet_size"],
+            "Average truck age (years)": e["avg_age_years"].round(2),
+            "Trucks over 6 years old (%)": (100 * e["share_over_6y"]).round(1),
+            "Our share of their trucks (%)": (100 * e["our_share"]).round(1),
+            "Km per truck per year": e["km_per_truck_year"].round(0),
+            "Service cost per truck (€/month)": e["service_cost_per_truck"].round(0),
+            "Service cost vs a year ago (%)": (100 * e["service_cost_trend"]).round(1),
+            "Fleet growth, 12 months (%)": (100 * e["fleet_growth_12m"]).round(1),
+            "Breakdowns, last 3 months": e["breakdowns_3m"],
+            "Sales visits, last 3 months": e["visits_3m"],
+            "Quotes, last 3 months": e["quotes_3m"],
+            "Months since last order": e["months_since_last_order"],
+            "Orders, last 2 years": e["orders_last_24m"],
+        }
+    )
+    return tb, pipeline, names, hist, metrics, segments, explore
 
 
-tb, pipeline, names, hist, metrics, segments = load()
+tb, pipeline, names, hist, metrics, segments, explore = load()
 audit = AuditLog(S.audit_db)
 period = pipeline.attrs.get("period") or hist["period"].max()
 ss = st.session_state
@@ -124,13 +152,14 @@ st.markdown("### Which customers should the sales team call this month, and why?
 st.info(
     "**How to use it:** **1. 📞 Who to call**: every customer ranked by how likely they are to order new trucks "
     "soon. **2. 🔍 One customer**: pick a customer to see why, and what to talk about. **3. 💬 Ask the AI**: ask "
-    "questions in plain English. The last three tabs show customer groups, how much to trust the model, and a log "
-    "of every AI answer.",
+    "questions in plain English. The other tabs let you make your own charts, see customer groups, check how much "
+    "to trust the model, and read a log of every AI answer.",
     icon="👋",
 )
 
-TABS = ["📞 Who to call", "🔍 One customer", "💬 Ask the AI", "👥 Customer groups", "📊 Can we trust it?"]
-tab_pipe, tab_cust, tab_chat, tab_seg, tab_model, tab_audit = st.tabs(TABS + ["🧾 Activity log"])
+TABS = ["📞 Who to call", "🔍 One customer", "💬 Ask the AI", "📈 Explore the data", "👥 Customer groups"]
+tabs = st.tabs(TABS + ["📊 Can we trust it?", "🧾 Activity log"])
+tab_pipe, tab_cust, tab_chat, tab_explore, tab_seg, tab_model, tab_audit = tabs
 
 
 def label(cid: str) -> str:
@@ -401,6 +430,50 @@ with tab_seg:
         hide_index=True,
         width="stretch",
     )
+
+# --- explore ---
+with tab_explore:
+    st.markdown(
+        "Make your own charts from the customer data: pick a chart and the columns. **Hover** a point for details, "
+        "**drag** to zoom, **double-click** to reset. Try *Scatter* of truck age vs chance to order: old fleets are "
+        "not always the likely buyers."
+    )
+    cats = ["Country", "Industry", "Customer group"]
+    nums = [c for c in explore.columns if c not in ["Customer", *cats]]
+    k1, k2, k3, k4 = st.columns(4)
+    kind = k1.selectbox("Chart", ["Scatter", "Histogram", "Box plot", "Bar (average)"])
+    y = None
+    if kind == "Scatter":
+        x = k2.selectbox("X axis", nums, index=nums.index("Average truck age (years)"))
+        y = k3.selectbox("Y axis", nums, index=nums.index("Chance to order (%)"))
+    elif kind == "Histogram":
+        x = k2.selectbox("Value", nums, index=nums.index("Chance to order (%)"), key="ex_hist_value")
+    else:
+        x = k2.selectbox("Group by", cats, index=1)
+        y = k3.selectbox("Value", nums, index=nums.index("Chance to order (%)"), key="ex_group_value")
+    color = k4.selectbox("Colour by", ["None", *cats])
+    color = None if color == "None" or color == x else color
+    f1, f2 = st.columns(2)
+    ex_country = f1.multiselect("Country", sorted(explore["Country"].unique()), key="ex_country")
+    ex_industry = f2.multiselect("Industry", sorted(explore["Industry"].unique()), key="ex_industry")
+    d = explore
+    if ex_country:
+        d = d[d["Country"].isin(ex_country)]
+    if ex_industry:
+        d = d[d["Industry"].isin(ex_industry)]
+    if kind == "Scatter":
+        fig = px.scatter(d, x=x, y=y, color=color, hover_name="Customer", opacity=0.6)
+    elif kind == "Histogram":
+        fig = px.histogram(d, x=x, color=color, nbins=40, barmode="overlay", opacity=0.75)
+    elif kind == "Box plot":
+        fig = px.box(d, x=x, y=y, color=color, points=False)
+    else:
+        keys = [x] + ([color] if color else [])
+        g = d.groupby(keys, as_index=False)[y].mean().round(2)
+        fig = px.bar(g, x=x, y=y, color=color, barmode="group", labels={y: f"Average: {y}"})
+    fig.update_layout(height=480, margin=dict(t=30), legend=dict(orientation="h", y=-0.2))
+    st.plotly_chart(fig, width="stretch")
+    st.caption(f"{len(d):,} customers · data as of {period} · simulated data.")
 
 # --- model report ---
 with tab_model:
