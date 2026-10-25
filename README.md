@@ -126,6 +126,7 @@ share of all buyers a rep reaches by calling the 10% highest-scored customers.
 | 📞 Who to call | every customer ranked by chance to order, with the main reason; filters by country, industry, group |
 | 🔍 One customer | why this customer is likely to buy, chance month by month, won and lost deals, similar won deals |
 | 💬 Ask the AI | the chat: answer, ✅/⚠️ check badge, tools used, tokens, € cost |
+| 📈 Explore the data | build your own interactive charts: scatter, histogram, box plot or bar, any column, colour and filters |
 | 👥 Customer groups | the five customer groups (k-means segments) and how likely each is to order |
 | 📊 Can we trust it? | model vs simpler methods on unseen months, calibration, AI assistant test |
 | 🧾 Activity log | every AI question and step, with a tamper check |
