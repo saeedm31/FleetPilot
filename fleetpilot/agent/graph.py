@@ -262,3 +262,86 @@ class Copilot:
     def _log(self, state: State, kind: str, payload: dict) -> None:
         if self.audit is not None:
             self.audit.write(kind, payload, run_id=state.get("run_id"), actor=self.actor)
+
+
+# --- drawing the graph (for the app) ---
+_FALLBACK_EDGES = [
+    ("__start__", "agent", False),
+    ("agent", "tools", True),
+    ("agent", "check", True),
+    ("tools", "agent", False),
+    ("check", "agent", True),
+    ("check", END, True),
+]
+
+
+def structure() -> dict:
+    """Nodes and edges of the copilot graph, read from the compiled LangGraph graph when it is installed."""
+    fallback = {"source": "built-in runner", "nodes": ["__start__", "agent", "tools", "check", END]}
+    fallback["edges"] = _FALLBACK_EDGES
+    if not HAS_LANGGRAPH:
+        return fallback
+    try:
+        g = Copilot.__new__(Copilot)._compile().get_graph()  # nodes are never run here
+    except Exception:  # drawing must never break the app
+        return fallback
+    edges = [(e.source, e.target, bool(e.conditional)) for e in g.edges]
+    return {"source": "LangGraph", "nodes": list(g.nodes), "edges": edges}
+
+
+def run_path(events: list[dict]) -> list[str]:
+    """The nodes one run went through, rebuilt from its audit log events (oldest first)."""
+    path = ["__start__"]
+    for e in events:
+        node = {"llm_call": "agent", "tool_call": "tools", "check": "check"}.get(e["kind"])
+        if node and node != path[-1]:
+            path.append(node)
+    return path + [END] if path[-1] == "check" else path
+
+
+_LABELS = {
+    "__start__": "question",
+    "agent": "agent\nClaude decides",
+    "tools": "tools\nread the data",
+    "check": "check\nevery number\nhas a source?",
+    END: "answer",
+}
+_EDGE_LABELS = {
+    ("agent", "tools"): "needs data",
+    ("agent", "check"): "has an answer",
+    ("check", "agent"): "number without source:\nrewrite once",
+    ("check", END): "all verified",
+}
+
+
+def to_dot(struct: dict, path: list[str] | None = None) -> str:
+    """Graphviz DOT for the graph; the nodes and edges of `path` are highlighted, with how often each edge was used."""
+    path = path or []
+    used: dict[tuple[str, str], int] = {}
+    for a, b in zip(path, path[1:], strict=False):
+        used[(a, b)] = used.get((a, b), 0) + 1
+    lines = [
+        "digraph {",
+        '  rankdir=LR; bgcolor="transparent"; pad=0.2; nodesep=0.5;',
+        '  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, color="#2F5BB7"];',
+        '  node [fillcolor="#EEF2FA", fontcolor="#1F2A44"];',
+        '  edge [fontname="Helvetica", fontsize=9, color="#8A94A6", fontcolor="#5A6478"];',
+    ]
+    for n in struct["nodes"]:
+        shape = "oval" if n in ("__start__", END) else "box"
+        hot = ', fillcolor="#2F5BB7", fontcolor="white"' if n in path else ""
+        label = _LABELS.get(n, n).replace("\n", "\\n")
+        lines.append(f'  "{n}" [label="{label}", shape={shape}{hot}];')
+    for a, b, conditional in struct["edges"]:
+        count = used.get((a, b), 0)
+        label = _EDGE_LABELS.get((a, b), "").replace("\n", "\\n")
+        if count > 1:
+            label = f"{label} (x{count})".strip()
+        attrs = [f'label="{label}"'] if label else []
+        if conditional:
+            attrs.append("style=dashed")
+        if count:
+            attrs += ['color="#D9692A"', "penwidth=2.5", 'fontcolor="#D9692A"']
+        lines.append(f'  "{a}" -> "{b}" [{", ".join(attrs)}];')
+    lines.append("}")
+    return "\n".join(lines)
