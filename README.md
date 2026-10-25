@@ -12,7 +12,7 @@ with every number checked, logged and priced.
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](#-run-it)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-▶️ **Live app:** _link follows after the first deploy_ · 🏗️ **[Architecture](docs/architecture.md)** · 📇 **[Model card](docs/model_card.md)** · 🔒 **[Security](SECURITY.md)**
+▶️ **[Live app](https://sh-fleetpilot.streamlit.app)** · 🏗️ **[Architecture](docs/architecture.md)** · 📇 **[Model card](docs/model_card.md)** · 🔒 **[Security](SECURITY.md)**
 
 > **Simulated data** for a fictional truck maker: 2,000 fleet customers over 3 years, fake company names.
 > The simulator knows the true buying rule, so the models can be scored honestly. The numbers show the method,
@@ -80,7 +80,20 @@ flowchart LR
 
 ## 📊 Results
 
-_Results table follows after the first CI run._
+Scored on months 25-29, which the model never saw. 20% of customers order within 6 months. "Top 10% finds" is the
+share of all buyers a rep reaches by calling the 10% highest-scored customers.
+
+| Model | AUC | PR-AUC | Top 10% finds | Top 20% finds |
+|---|---|---|---|---|
+| Rule of thumb: oldest fleets first | 0.724 | 0.428 | 26% | 42% |
+| Logistic regression | 0.821 | 0.535 | 32% | 52% |
+| **XGBoost, calibrated (what the app uses)** | **0.839** | **0.582** | **33%** (3.3x lift) | **55%** |
+
+- **Calibration:** Brier score 0.119; the calibration chart is in the app's Model report tab.
+- **Copilot, offline evaluation:** 24 of 24 questions pass with the scripted model (right tool, right facts,
+  grounded, declines out-of-scope and personal-data requests).
+- **Copilot, live evaluation:** add an `ANTHROPIC_API_KEY` repository secret and run the **Live evaluation**
+  workflow. It scores real Claude on the same 24 questions and records demo runs for the app.
 
 ## 🖥️ The app
 

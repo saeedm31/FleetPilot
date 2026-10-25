@@ -33,6 +33,10 @@ CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0", "--server.port=85
 FROM python:3.12-slim AS mlflow
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN pip install "mlflow>=3.1,<3.2" "sqlalchemy<2.1" && useradd --create-home --uid 1000 mlflow && mkdir -p /mlflow && chown mlflow /mlflow
+# The registry code inside the server opens its own client (MLflow issue #17812): point it at the
+# same database, and run from a folder it can write to, or model registration fails with a 500.
+ENV MLFLOW_TRACKING_URI=sqlite:////mlflow/mlflow.db
+WORKDIR /mlflow
 USER mlflow
 EXPOSE 5000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s \
