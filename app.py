@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from fleetpilot import config as C
+from fleetpilot.agent.graph import run_path, structure, to_dot
 from fleetpilot.agent.scripted import ScriptedAnthropic
 from fleetpilot.agent.tools import Toolbox
 from fleetpilot.audit import AuditLog
@@ -286,6 +287,19 @@ with tab_chat:
         "*how many deals did we lose*. The AI only reads the sales data (it can't change anything), and a **check** "
         "makes sure every number in its answer comes from that data."
     )
+    graph = structure()
+    with st.expander("🧭 How the AI works: the LangGraph flow", expanded=not ss.chat):
+        last = next((m["res"] for m in reversed(ss.chat) if (m.get("res") or {}).get("run_id")), None)
+        path = run_path(audit.read(run_id=last["run_id"])) if last else []
+        st.graphviz_chart(to_dot(graph, path))
+        st.caption(
+            "**agent**: Claude reads the question and decides: fetch data with a tool, or answer. "
+            "**tools**: read-only tools run (call list, customer profile, similar deals, groups, safe SQL). "
+            "**check**: every number in the answer must come from the data; if not, Claude rewrites once. "
+            "Dashed lines are decisions. "
+            + ("**Orange: the path of your last question.** " if len(path) > 1 else "Ask a question to see its path. ")
+            + f"Drawn from the {graph['source']} graph in `fleetpilot/agent/graph.py`."
+        )
     recs = load_all()
     use_scripted = False
     if not COMPANY_MODE and mode.startswith("Demo"):
@@ -315,6 +329,10 @@ with tab_chat:
             f"{badge} · {c['calls']} model call(s), {c['input']:,} tokens in / {c['output']:,} out · "
             f"**{eur(c['eur'])}** · {res['seconds']} s" + (f" · run {res['run_id']}" if res.get("run_id") else "")
         )
+        steps = run_path(audit.read(run_id=res["run_id"])) if res.get("run_id") else []
+        if len(steps) > 1:
+            names = {"__start__": "question", "__end__": "answer"}
+            st.caption("Path: " + " → ".join(names.get(n, n) for n in steps))
         with st.expander(f"Tools used ({len(res['tool_calls'])})"):
             for t in res["tool_calls"]:
                 st.code(

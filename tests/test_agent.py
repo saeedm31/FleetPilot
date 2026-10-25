@@ -3,7 +3,7 @@ import sqlite3
 import pytest
 
 from fleetpilot.agent.check import check
-from fleetpilot.agent.graph import HAS_LANGGRAPH
+from fleetpilot.agent.graph import HAS_LANGGRAPH, run_path, structure, to_dot
 from fleetpilot.agent.scripted import ScriptedAnthropic
 from fleetpilot.agent.tools import Toolbox
 from fleetpilot.audit import AuditLog
@@ -96,3 +96,16 @@ def test_scripted_demo_answers_biggest_fleets_and_admits_what_it_cannot(built):
     assert r.check["ok"] and "trucks" in r.answer
     r = cp.ask("What colour are the trucks of our customers?")
     assert r.tool_calls == [] and "doesn't understand" in r.answer
+
+
+def test_graph_drawing_and_run_path(built):
+    s, _ = built
+    g = structure()
+    assert {"agent", "tools", "check"} <= set(g["nodes"])
+    assert ("tools", "agent") in [(a, b) for a, b, _ in g["edges"]]
+    cp = copilot(s, client=ScriptedAnthropic(invent_number_once=True))
+    r = cp.ask("Which customers in Spain should I call first?")
+    path = run_path(AuditLog(s.audit_db).read(run_id=r.run_id))
+    assert path == ["__start__", "agent", "tools", "agent", "check", "agent", "check", "__end__"]
+    dot = to_dot(g, path)
+    assert dot.startswith("digraph") and "(x2)" in dot and "#D9692A" in dot
