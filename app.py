@@ -56,7 +56,7 @@ with st.sidebar:
         icon="🧪",
     )
     st.divider()
-    st.markdown("**Copilot settings**")
+    st.markdown("**AI assistant settings**")
     if COMPANY_MODE:
         mode, api_key = "Live", None
         st.success(f"Claude via Amazon Bedrock · {S.aws_region}", icon="✅")
@@ -83,9 +83,17 @@ with st.sidebar:
     st.progress(min(spent / budget, 1.0) if budget else 0.0, text=f"Spent {eur(spent)} of {eur(budget)}")
     st.caption(f"Prices checked {PRICES_CHECKED}. Every answer shows its own cost.")
 
-tab_pipe, tab_cust, tab_chat, tab_seg, tab_model, tab_audit = st.tabs(
-    ["📋 Pipeline", "🏢 Customer", "🤖 Copilot", "🧩 Segments", "📊 Model report", "🧾 Audit log"]
+st.markdown("### Which customers should the sales team call this month, and why?")
+st.info(
+    "**How to use it:** **1. 📞 Who to call**: every customer ranked by how likely they are to order new trucks "
+    "soon. **2. 🔍 One customer**: pick a customer to see why, and what to talk about. **3. 💬 Ask the AI**: ask "
+    "questions in plain English. The last three tabs show customer groups, how much to trust the model, and a log "
+    "of every AI answer.",
+    icon="👋",
 )
+
+TABS = ["📞 Who to call", "🔍 One customer", "💬 Ask the AI", "👥 Customer groups", "📊 Can we trust it?"]
+tab_pipe, tab_cust, tab_chat, tab_seg, tab_model, tab_audit = st.tabs(TABS + ["🧾 Activity log"])
 
 
 def label(cid: str) -> str:
@@ -96,20 +104,25 @@ def label(cid: str) -> str:
 with tab_pipe:
     gb = metrics["test"]["Gradient boosting (calibrated)"]
     rule = metrics["test"]["Rule of thumb: oldest fleets first"]
+    st.markdown(
+        "The call list for this month. Customers at the top are the most likely to order new trucks from us in the "
+        "next 6 months. **Call from the top down.** The last column says why."
+    )
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Customers", f"{len(pipeline):,}")
-    c2.metric("Expected orders, next 6 months", f"{pipeline['score'].sum():,.0f}")
-    c3.metric("Score > 50%", f"{(pipeline['score'] > 0.5).sum():,}")
+    c2.metric("Orders we expect in 6 months", f"{pipeline['score'].sum():,.0f}", help="Sum of all chances.")
+    c3.metric("Likely buyers (chance over 50%)", f"{(pipeline['score'] > 0.5).sum():,}")
     c4.metric(
-        "Top 10% call list finds",
+        "Calling the top 10% reaches",
         f"{gb['buyers_found_top10']:.0%} of buyers",
-        f"oldest-fleet rule: {rule['buyers_found_top10']:.0%}",
+        f"old rule (oldest fleets first): {rule['buyers_found_top10']:.0%}",
         delta_color="off",
+        help="Tested on past months the model never saw.",
     )
     f1, f2, f3 = st.columns(3)
     country = f1.multiselect("Country", sorted(pipeline["country"].unique()))
     industry = f2.multiselect("Industry", sorted(pipeline["industry"].unique()))
-    segment = f3.multiselect("Segment", sorted(pipeline["segment"].unique()))
+    segment = f3.multiselect("Customer group", sorted(pipeline["segment"].unique()))
     v = pipeline
     for col, sel in (("country", country), ("industry", industry), ("segment", segment)):
         if sel:
@@ -121,19 +134,20 @@ with tab_pipe:
             "Chance to order": (100 * v["score"]).round(0).astype(int).astype(str) + "%",
             "Country": v["country"],
             "Industry": v["industry"],
-            "Segment": v["segment"],
+            "Customer group": v["segment"],
             "Trucks": v["fleet_size"],
             "Main reason": v["reason_1"],
         }
     )
     st.dataframe(view.head(300), hide_index=True, width="stretch", height=480)
     st.caption(
-        f"Data as of {period}. Company names are shown only here, in your browser: the copilot and the AI model "
-        "see customer IDs only."
+        f"Top 300 shown. Data as of {period}. Company names are shown only here, in your browser: the AI sees "
+        "customer IDs only."
     )
 
 # --- customer ---
 with tab_cust:
+    st.markdown("Pick a customer to see **why** they are likely to buy, and what worked with similar customers.")
     cid = st.selectbox("Customer", pipeline["customer_id"].head(300), format_func=label)
     row = pipeline.set_index("customer_id").loc[cid]
     prof = tb.customer_profile(cid)
@@ -149,16 +163,17 @@ with tab_cust:
         "Fleet", f"{snap['fleet_size']:.0f} trucks", f"avg age {snap['avg_age_years']:.1f} years", delta_color="off"
     )
     c3.metric("Our share of the fleet", f"{snap['our_share']:.0%}")
-    c4.metric("Segment", row["segment"])
+    c4.metric("Customer group", row["segment"])
     left, right = st.columns([1, 1])
     with left:
-        st.markdown("**Why this score** (SHAP: what pushed the chance up or down)")
+        st.markdown("**Why this chance** (🔼 raises it, 🔽 lowers it)")
         reasons = json.loads(row["reasons_json"])
         for r in reasons:
             st.markdown(f"{'🔼' if r['effect'] > 0 else '🔽'} {r['text']}")
         st.markdown("**Recent deals**")
         st.dataframe(pd.DataFrame(prof["recent_deals"]), hide_index=True, width="stretch")
     with right:
+        st.markdown("**Chance to order, month by month**")
         h = hist[hist["customer_id"] == cid].sort_values("month")
         fig = go.Figure()
         fig.add_trace(
@@ -192,17 +207,18 @@ with tab_cust:
         )
         st.plotly_chart(fig, width="stretch")
         sim = tb.similar_won_deals(cid)
-        st.markdown(f"**Similar won deals** ({sim['industry']}, similar fleet size)")
+        st.markdown(f"**Deals we won with similar customers** ({sim['industry']}): ideas for the pitch")
         st.dataframe(pd.DataFrame(sim["rows"]), hide_index=True, width="stretch")
-    if st.button(f"Ask the copilot about {cid}"):
+    if st.button(f"Ask the AI about {cid}"):
         ss.prefill = f"Why is {cid} likely to buy, and what should I pitch? Draft a short first email."
-        st.info("Question added: open the 🤖 Copilot tab.")
+        st.info("Question added: open the 💬 Ask the AI tab.")
 
 # --- copilot ---
 with tab_chat:
     st.markdown(
-        "Ask about customers, segments or deals. The copilot (LangGraph + Claude) uses read-only tools on the CRM, "
-        "and a **check step** makes sure every number in its answer comes from a tool result."
+        "Ask about customers, groups or deals in plain English, e.g. *who to call in Spain*, *draft an email*, "
+        "*how many deals did we lose*. The AI only reads the sales data (it can't change anything), and a **check** "
+        "makes sure every number in its answer comes from that data."
     )
     recs = load_all()
     use_scripted = False
@@ -304,9 +320,11 @@ with tab_chat:
 # --- segments ---
 with tab_seg:
     st.markdown(
-        "Five groups of customers with similar fleets (k-means on fleet size, age, mileage, our share, growth "
-        "and service cost). Named from what sets each group apart."
+        "All customers split into **5 groups with similar fleets**, so the team can plan one campaign per group "
+        "instead of 2,000 single calls. Each name says what sets the group apart. The bars show how likely each "
+        "group is to order in the next 6 months."
     )
+    st.caption("Method: k-means on fleet size, truck age, mileage, our share, fleet growth and service cost.")
     fig = go.Figure(
         go.Bar(
             x=segments["avg_score"],
@@ -324,7 +342,17 @@ with tab_seg:
     )
     st.plotly_chart(fig, width="stretch")
     st.dataframe(
-        segments.rename(columns={"avg_fleet": "avg trucks", "our_share": "our share", "avg_score": "avg chance"}),
+        segments.rename(
+            columns={
+                "segment": "group",
+                "trucks": "trucks in total",
+                "avg_fleet": "avg trucks per customer",
+                "avg_age_years": "avg truck age (years)",
+                "our_share": "our share of their trucks",
+                "main_industry": "main industry",
+                "avg_score": "avg chance to order",
+            }
+        ),
         hide_index=True,
         width="stretch",
     )
@@ -333,14 +361,23 @@ with tab_seg:
 with tab_model:
     m = metrics
     st.markdown(
-        f"**Question:** will the customer order new trucks from us within {m['horizon_months']} months? "
+        "**Can we trust the scores?** We trained the model on older months, then checked it on later months it had "
+        "never seen, and compared it with simpler methods. Higher is better in every column."
+    )
+    st.caption(
+        f"Details: will the customer order new trucks from us within {m['horizon_months']} months? "
         f"Trained on months {m['months']['train'][0]}-{m['months']['train'][1]}, calibrated on "
         f"{m['months']['calibration'][0]}-{m['months']['calibration'][1]}, tested on later months "
         f"{m['months']['test'][0]}-{m['months']['test'][1]} that the model never saw. Model: **{m['model_version']}**."
     )
+    plain = {
+        "Gradient boosting (calibrated)": "FleetPilot model",
+        "Logistic regression": "Simpler model (logistic regression)",
+        "Rule of thumb: oldest fleets first": "Old rule: oldest fleets first",
+    }
     rows = [
         dict(
-            Model=k,
+            Model=plain.get(k, k),
             AUC=round(v["auc"], 3),
             **{"PR-AUC": round(v["pr_auc"], 3)},
             **{"Top 10% finds": f"{v['buyers_found_top10']:.0%}", "Top 20% finds": f"{v['buyers_found_top20']:.0%}"},
@@ -349,8 +386,9 @@ with tab_model:
     ]
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
     st.caption(
-        f"Base rate: {gb['base_rate']:.0%} of customers order within 6 months. 'Top 10% finds' = share of all buyers "
-        "found by calling the 10% highest-scored customers."
+        f"Base rate: {gb['base_rate']:.0%} of customers order within 6 months. **Top 10% finds** = share of all buyers "
+        "reached by calling the 10% highest-ranked customers. **AUC** = how well the list puts buyers above "
+        "non-buyers (1.0 perfect, 0.5 random). **PR-AUC** = the same, focused on the buyers."
     )
     cal = pd.DataFrame(m["calibration"])
     fig = go.Figure()
@@ -364,9 +402,9 @@ with tab_model:
         height=320, xaxis_title="predicted chance", yaxis_title="share that actually ordered", margin=dict(t=20)
     )
     left, right = st.columns(2)
-    left.markdown("**Calibration:** does 30% mean 30%?")
+    left.markdown("**Does 30% really mean 30%?** The closer the blue line is to the dashed line, the better.")
     left.plotly_chart(fig, width="stretch")
-    right.markdown("**Copilot evaluation** (`python -m fleetpilot eval --live`)")
+    right.markdown("**AI assistant test**: 24 questions with known answers (`python -m fleetpilot eval --live`)")
     try:
         ev = json.loads((C.ROOT / "eval_report.json").read_text())
         right.metric("Questions passed", f"{ev['passed']} / {ev['cases']}", f"model {ev['model']}", delta_color="off")
@@ -382,12 +420,16 @@ with tab_model:
 with tab_audit:
     v = audit.verify()
     st.markdown(
+        "Every question asked to the AI, every step it took, and what it cost, saved so it can be checked later. "
+        "Records can be added but not changed."
+    )
+    st.markdown(
         ("✅ **Audit chain intact**" if v["ok"] else f"❌ **Audit chain broken at row {v.get('broken_at')}**")
         + f" · {v['rows']} events. Each row stores a hash of the previous one, so edits or deletions show up."
     )
     ends = [e for e in audit.read(limit=500) if e["kind"] == "run_end"]
     if not ends:
-        st.caption("No copilot runs logged yet in this deployment.")
+        st.caption("No questions logged yet. Ask one in the 💬 Ask the AI tab and it shows up here.")
     else:
         starts = {
             e["run_id"]: e["payload"].get("question", "") for e in audit.read(limit=2000) if e["kind"] == "run_start"

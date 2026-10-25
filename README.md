@@ -113,7 +113,7 @@ share of all buyers a rep reaches by calling the 10% highest-scored customers.
 | Logistic regression | 0.821 | 0.535 | 32% | 52% |
 | **XGBoost, calibrated (what the app uses)** | **0.839** | **0.582** | **33%** (3.3x lift) | **55%** |
 
-- **Calibration:** Brier score 0.119; the calibration chart is in the app's Model report tab.
+- **Calibration:** Brier score 0.119; the calibration chart is in the app's "Can we trust it?" tab.
 - **Copilot, offline evaluation:** 24 of 24 questions pass with the scripted model (right tool, right facts,
   grounded, declines out-of-scope and personal-data requests).
 - **Copilot, live evaluation:** add an `ANTHROPIC_API_KEY` repository secret and run the **Live evaluation**
@@ -123,12 +123,12 @@ share of all buyers a rep reaches by calling the 10% highest-scored customers.
 
 | Tab | What it shows |
 |---|---|
-| 📋 Pipeline | every customer ranked, with chance to order and main reason; filters by country, industry, segment |
-| 🏢 Customer | score and rank, the SHAP reasons, score history with won and lost orders, similar won deals |
-| 🤖 Copilot | the chat: answer, ✅/⚠️ check badge, tools used, tokens, € cost |
-| 🧩 Segments | the five segments and their average chance to order |
-| 📊 Model report | model vs baselines, calibration, copilot evaluation |
-| 🧾 Audit log | chain status, every run, and every step of a run |
+| 📞 Who to call | every customer ranked by chance to order, with the main reason; filters by country, industry, group |
+| 🔍 One customer | why this customer is likely to buy, chance month by month, won and lost deals, similar won deals |
+| 💬 Ask the AI | the chat: answer, ✅/⚠️ check badge, tools used, tokens, € cost |
+| 👥 Customer groups | the five customer groups (k-means segments) and how likely each is to order |
+| 📊 Can we trust it? | model vs simpler methods on unseen months, calibration, AI assistant test |
+| 🧾 Activity log | every AI question and step, with a tamper check |
 
 Demo mode works without a key (recorded real runs, or a scripted test model that shows the mechanics). Live mode
 uses your Anthropic key for the session only.
