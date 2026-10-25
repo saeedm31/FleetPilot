@@ -14,6 +14,25 @@ from types import SimpleNamespace
 from ..sim import COUNTRY_NAMES, INDUSTRY_NAMES
 
 ID = re.compile(r"\bC-[0-9A-F]{6}\b")
+CALL_LIST_WORDS = ("call", "contact", "top", "likely", "buy", "order", "priorit", "pitch", "lead", "first", "best")
+BIGGEST_WORDS = ("most truck", "most vehicle", "biggest", "largest", "fleet size", "most fleet")
+OLDEST_WORDS = ("oldest", "old trucks", "old fleet")
+COUNTRY_WORDS = {
+    "PT": "portugal",
+    "DE": "germany",
+    "ES": "spain",
+    "FR": "france",
+    "IT": "italy",
+    "PL": "poland",
+    "NL": "netherlands",
+    "SE": "sweden",
+}
+NOT_UNDERSTOOD = (
+    "Sorry, the demo model is a simple script, not AI, and it doesn't understand this question. It can answer: "
+    "who to call first (also by country or industry), why a customer is likely to buy (give an ID like C-...), "
+    "customer groups, how many deals we won or lost, and which customers have the biggest or oldest fleets. "
+    "Pick AI or Live mode in the sidebar to ask anything."
+)
 
 
 class ScriptedMessages:
@@ -35,9 +54,13 @@ class ScriptedMessages:
             text = "I can only help with sales questions about our fleet customers, and I can't share personal data or change the database."
             return SimpleNamespace(content=[{"type": "text", "text": text}], stop_reason="end_turn", usage=usage)
         if isinstance(last, str) and last == question and (tool_choice or {}).get("type") != "none":
+            plan = self._plan(question)
+            if not plan:
+                return SimpleNamespace(
+                    content=[{"type": "text", "text": NOT_UNDERSTOOD}], stop_reason="end_turn", usage=usage
+                )
             blocks = [
-                {"type": "tool_use", "id": f"t{self.n}{i}", "name": n, "input": a}
-                for i, (n, a) in enumerate(self._plan(question))
+                {"type": "tool_use", "id": f"t{self.n}{i}", "name": n, "input": a} for i, (n, a) in enumerate(plan)
             ]
             return SimpleNamespace(content=blocks, stop_reason="tool_use", usage=usage)
         results = [
@@ -55,7 +78,7 @@ class ScriptedMessages:
         ids = ID.findall(q)
         if ids:
             return [("customer_profile", {"customer_id": ids[0]}), ("similar_won_deals", {"customer_id": ids[0]})]
-        if "segment" in ql:
+        if "segment" in ql or "group" in ql:
             return [("segment_overview", {})]
         if "how many" in ql and "deal" in ql:
             status = "lost" if "lost" in ql or "lose" in ql else "won"
@@ -70,26 +93,22 @@ class ScriptedMessages:
                     },
                 )
             ]
+        for words, col in ((BIGGEST_WORDS, "fleet_size"), (OLDEST_WORDS, "avg_age_years")):
+            if any(w in ql for w in words):
+                sql = (
+                    "SELECT customer_id, fleet_size, round(avg_age_years, 1) AS avg_age_years "
+                    f"FROM snapshot ORDER BY {col} DESC LIMIT 5"
+                )
+                return [("run_sql", {"query": sql})]
         args: dict = {"limit": 5}
         for c in COUNTRY_NAMES:
-            if (
-                re.search(rf"\b{c}\b", q)
-                or {
-                    "PT": "portugal",
-                    "DE": "germany",
-                    "ES": "spain",
-                    "FR": "france",
-                    "IT": "italy",
-                    "PL": "poland",
-                    "NL": "netherlands",
-                    "SE": "sweden",
-                }[c]
-                in ql
-            ):
+            if re.search(rf"\b{c}\b", q) or COUNTRY_WORDS[c] in ql:
                 args["country"] = c
         for ind in INDUSTRY_NAMES:
             if ind.split()[0] in ql:
                 args["industry"] = ind
+        if len(args) == 1 and not any(w in ql for w in CALL_LIST_WORDS):
+            return []  # not a question this script understands: say so instead of guessing
         return [("top_customers", args)]
 
     def _write(self, results: list[dict], retry: bool) -> str:
@@ -101,6 +120,11 @@ class ScriptedMessages:
                 for row in r["rows"][:5]:
                     if "customer_id" in row and "score" in row:
                         lines.append(f"- {row['customer_id']}: score {row['score']:.2f}; {row.get('reason_1', '')}")
+                    elif "avg_age_years" in row and "fleet_size" in row:
+                        lines.append(
+                            f"- {row['customer_id']}: {row['fleet_size']} trucks, "
+                            f"average age {row['avg_age_years']} years"
+                        )
                     elif "segment" in row:
                         lines.append(
                             f"- {row['segment']}: {row['customers']} customers, average score {row['avg_score']}"
