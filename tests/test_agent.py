@@ -86,3 +86,13 @@ def test_offline_evaluation_wiring(built):
     rep = run_eval(copilot(s, client=ScriptedAnthropic()), s.crm_db)
     assert rep["cases"] >= 20
     assert rep["tools_ok"] == rep["cases"] and rep["grounded"] == rep["cases"]
+
+
+def test_scripted_demo_answers_biggest_fleets_and_admits_what_it_cannot(built):
+    s, _ = built
+    cp = copilot(s, client=ScriptedAnthropic())
+    r = cp.ask("Which customer has the most trucks in our db?")
+    assert [c["name"] for c in r.tool_calls] == ["run_sql"] and "fleet_size DESC" in r.tool_calls[0]["input"]["query"]
+    assert r.check["ok"] and "trucks" in r.answer
+    r = cp.ask("What colour are the trucks of our customers?")
+    assert r.tool_calls == [] and "doesn't understand" in r.answer
