@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 
 import pandas as pd
@@ -22,6 +23,26 @@ st.set_page_config(page_title="FleetPilot", page_icon="🚚", layout="wide")
 BLUE, ORANGE, GREY, GREEN = "#2F5BB7", "#D9692A", "#8A94A6", "#2E8B57"
 S = C.settings()
 COMPANY_MODE = S.llm_provider == "bedrock"
+SHARED_SESSION_EUR = float(os.getenv("DEMO_SESSION_BUDGET_EUR", "0.5"))  # per visitor
+SHARED_DAILY_EUR = float(os.getenv("DEMO_DAILY_BUDGET_EUR", "3"))  # all visitors together
+
+
+def _shared_key() -> str | None:
+    """The app owner's key for the public demo, from Streamlit secrets or the environment. Never shown."""
+    try:
+        key = st.secrets.get("ANTHROPIC_API_KEY")
+    except Exception:  # no secrets file
+        key = None
+    return key or os.getenv("ANTHROPIC_API_KEY") or None
+
+
+SHARED_KEY = None if COMPANY_MODE else _shared_key()
+
+
+@st.cache_resource
+def shared_spend() -> dict:
+    """Spend on the shared key, across all visitors of this app process."""
+    return {"day": "", "eur": 0.0}
 
 
 @st.cache_resource(show_spinner="Building the demo data and training the model (first start only, ~20 s)...")
@@ -61,8 +82,13 @@ with st.sidebar:
         mode, api_key = "Live", None
         st.success(f"Claude via Amazon Bedrock · {S.aws_region}", icon="✅")
     else:
-        mode = st.radio("Mode", ["Demo (no key)", "Live (your Anthropic key)"], index=0)
+        modes = ["AI (Claude)"] if SHARED_KEY else []
+        modes += ["Demo (scripted, no AI)", "Live (your Anthropic key)"]
+        mode = st.radio("Mode", modes, index=0)
         api_key = None
+        if mode.startswith("AI"):
+            api_key = SHARED_KEY
+            st.caption(f"Free to try: up to €{SHARED_SESSION_EUR:.2f} per visitor and €{SHARED_DAILY_EUR:.2f} per day.")
         if mode.startswith("Live"):
             api_key = st.text_input(
                 "Anthropic API key", type="password", help="Used only for this session. Never stored or logged."
@@ -73,9 +99,20 @@ with st.sidebar:
         format_func=AGENT_MODELS.get,
         index=list(AGENT_MODELS).index(S.agent_model) if S.agent_model in AGENT_MODELS else 0,
     )
-    budget = st.number_input(
-        "Monthly budget (€)" if COMPANY_MODE else "Session budget (€)", 0.0, 1000.0, float(S.monthly_budget_eur), 1.0
-    )
+    if mode.startswith("AI"):
+        budget = SHARED_SESSION_EUR
+    else:
+        budget = st.number_input(
+            "Monthly budget (€)" if COMPANY_MODE else "Session budget (€)",
+            0.0,
+            1000.0,
+            float(S.monthly_budget_eur),
+            1.0,
+        )
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    shared = shared_spend()
+    if shared["day"] != today:
+        shared.update(day=today, eur=0.0)
     month = datetime.now(UTC).strftime("%Y-%m")
     ends = [e for e in audit.read(limit=5000) if e["kind"] == "run_end"]
     month_eur = sum((e["payload"].get("cost_eur") or 0) for e in ends if e["ts"].startswith(month))
@@ -276,12 +313,18 @@ with tab_chat:
         q = st.chat_input("e.g. Which customers in Portugal should I call first this week, and why?")
         q = q or ss.pop("prefill", None)
         if q:
-            if budget and (month_eur if COMPANY_MODE else ss.session_eur) >= budget:
+            if mode.startswith("AI") and shared["eur"] >= SHARED_DAILY_EUR:
+                st.error("Today's free AI budget is used up. Try again tomorrow, or use your own key in Live mode.")
+            elif mode.startswith("AI") and ss.session_eur >= budget:
+                st.error(
+                    f"You have used your free {eur(budget)} of AI answers. Use your own key in Live mode for more."
+                )
+            elif budget and (month_eur if COMPANY_MODE else ss.session_eur) >= budget:
                 st.error(
                     f"The {'monthly' if COMPANY_MODE else 'session'} budget of {eur(budget)} is reached. Raise it in the sidebar."
                 )
             elif not (COMPANY_MODE or use_scripted or api_key):
-                st.warning("Enter your Anthropic API key in the sidebar, or use Demo mode.")
+                st.warning("Enter your Anthropic API key in the sidebar, or pick another mode.")
             else:
                 ok = False
                 with st.spinner("Thinking, calling tools, checking numbers..."):
@@ -304,6 +347,8 @@ with tab_chat:
                             run_id=r.run_id,
                         )
                         ss.session_eur += r.cost["eur"] or 0.0
+                        if mode.startswith("AI"):
+                            shared["eur"] += r.cost["eur"] or 0.0
                         ss.chat += [
                             {"role": "user", "content": q},
                             {"role": "assistant", "content": r.answer, "res": res},
