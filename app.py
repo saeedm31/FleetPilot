@@ -22,7 +22,55 @@ from fleetpilot.recordings import load_all
 from fleetpilot.service import copilot
 
 st.set_page_config(page_title="FleetPilot", page_icon="🚚", layout="wide")
-BLUE, ORANGE, GREY, GREEN = "#2F5BB7", "#D9692A", "#8A94A6", "#2E8B57"
+BLUE, ORANGE, GREY, GREEN = "#7FD1C7", "#E8735A", "#8FA3BF", "#6FCF97"  # dark theme: teal, coral, grey, green
+ACCENT = "#F2A65A"
+CSS = """
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"] { font-family: 'IBM Plex Sans', sans-serif; }
+h1, h2, h3, [data-testid="stMetricValue"] { font-family: 'Space Grotesk', sans-serif !important; letter-spacing: -0.01em; }
+[data-testid="stAppViewContainer"] {
+  background: radial-gradient(1100px 520px at 88% -8%, #1B3358 0%, rgba(11,20,36,0) 60%),
+              linear-gradient(135deg, #0B1424 0%, #13233D 100%);
+}
+[data-testid="stHeader"] { background: transparent; }
+.block-container { padding-top: 2.2rem; max-width: 1400px; }
+#MainMenu, footer { visibility: hidden; }
+[data-testid="stSidebar"] { border-right: 1px solid #2E4566; }
+[data-testid="stMetric"] {
+  background: rgba(22,37,61,0.85); border: 1px solid #2E4566; border-radius: 14px;
+  padding: 14px 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+[data-testid="stMetricLabel"] p { color: #8FA3BF; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.stTabs [data-baseweb="tab-list"] { gap: 4px; border-bottom: 1px solid #2E4566; }
+.stTabs [data-baseweb="tab"] { padding: 10px 16px; border-radius: 10px 10px 0 0; color: #B8C2D1; }
+.stTabs [aria-selected="true"] { background: #16253D; color: #F3F1EA; }
+.stTabs [data-baseweb="tab-highlight"] { background-color: #F2A65A; }
+[data-testid="stDataFrame"] { border: 1px solid #2E4566; border-radius: 12px; overflow: hidden; }
+[data-testid="stExpander"] details, [data-testid="stAlert"] { border-radius: 12px; }
+.fp-hero { margin: 0 0 1.2rem 0; }
+.fp-kicker { color: #F2A65A; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; font-size: 0.8rem; }
+.fp-title { font-family: 'Space Grotesk', sans-serif; font-size: 2.3rem; font-weight: 700; line-height: 1.15;
+            margin: 0.35rem 0 0.5rem 0; color: #F3F1EA; }
+.fp-sub { color: #B8C2D1; font-size: 1.05rem; line-height: 1.5; max-width: 62rem; }
+.fp-steps { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.9rem; }
+.fp-step { background: rgba(22,37,61,0.85); border: 1px solid #2E4566; border-radius: 999px;
+           padding: 0.35rem 0.95rem; color: #DCE3EE; font-size: 0.92rem; }
+.fp-step b { color: #F2A65A; margin-right: 0.35rem; }
+"""
+HERO = """
+<div class="fp-hero">
+  <div class="fp-kicker">FleetPilot · sales copilot for a truck maker</div>
+  <div class="fp-title">Which customers should the sales team call this month, and why?</div>
+  <div class="fp-sub">An ML model ranks 2,000 fleet customers by their chance to order new trucks in the next 6 months,
+  and explains each score. An AI copilot answers questions about the data, with every number checked.</div>
+  <div class="fp-steps">
+    <span class="fp-step"><b>1</b>📞 Who to call: the ranked list</span>
+    <span class="fp-step"><b>2</b>🔍 One customer: why, and what to say</span>
+    <span class="fp-step"><b>3</b>💬 Ask the AI: questions in plain English</span>
+  </div>
+</div>
+"""
+st.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
 S = C.settings()
 COMPANY_MODE = S.llm_provider == "bedrock"
 SHARED_SESSION_EUR = float(os.getenv("DEMO_SESSION_BUDGET_EUR", "0.5"))  # per visitor
@@ -149,14 +197,7 @@ with st.sidebar:
     st.progress(min(spent / budget, 1.0) if budget else 0.0, text=f"Spent {eur(spent)} of {eur(budget)}")
     st.caption(f"Prices checked {PRICES_CHECKED}. Every answer shows its own cost.")
 
-st.markdown("### Which customers should the sales team call this month, and why?")
-st.info(
-    "**How to use it:** **1. 📞 Who to call**: every customer ranked by how likely they are to order new trucks "
-    "soon. **2. 🔍 One customer**: pick a customer to see why, and what to talk about. **3. 💬 Ask the AI**: ask "
-    "questions in plain English. The other tabs let you make your own charts, see customer groups, check how much "
-    "to trust the model, and read a log of every AI answer.",
-    icon="👋",
-)
+st.markdown(HERO, unsafe_allow_html=True)
 
 TABS = ["📞 Who to call", "🔍 One customer", "💬 Ask the AI", "📈 Explore the data", "👥 Customer groups"]
 tabs = st.tabs(TABS + ["📊 Can we trust it?", "🧾 Activity log"])
@@ -198,7 +239,7 @@ with tab_pipe:
         {
             "Rank": v["rank"],
             "Customer": v["customer_id"].map(label),
-            "Chance to order": (100 * v["score"]).round(0).astype(int).astype(str) + "%",
+            "Chance to order": (100 * v["score"]).round(0),
             "Country": v["country"],
             "Industry": v["industry"],
             "Customer group": v["segment"],
@@ -206,7 +247,8 @@ with tab_pipe:
             "Main reason": v["reason_1"],
         }
     )
-    st.dataframe(view.head(300), hide_index=True, width="stretch", height=480)
+    bar = st.column_config.ProgressColumn("Chance to order", format="%d%%", min_value=0, max_value=100)
+    st.dataframe(view.head(300), hide_index=True, width="stretch", height=480, column_config={"Chance to order": bar})
     st.caption(
         f"Top 300 shown. Data as of {period}. Company names are shown only here, in your browser: the AI sees "
         "customer IDs only."
@@ -531,14 +573,14 @@ with tab_model:
     fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], line=dict(color=GREY, dash="dash"), name="perfect"))
     fig.add_trace(
         go.Scatter(
-            x=cal["predicted"], y=cal["actual"], mode="lines+markers", line=dict(color=BLUE, width=3), name="model"
+            x=cal["predicted"], y=cal["actual"], mode="lines+markers", line=dict(color=ACCENT, width=3), name="model"
         )
     )
     fig.update_layout(
         height=320, xaxis_title="predicted chance", yaxis_title="share that actually ordered", margin=dict(t=20)
     )
     left, right = st.columns(2)
-    left.markdown("**Does 30% really mean 30%?** The closer the blue line is to the dashed line, the better.")
+    left.markdown("**Does 30% really mean 30%?** The closer the orange line is to the dashed line, the better.")
     left.plotly_chart(fig, width="stretch")
     right.markdown("**AI assistant test**: 24 questions with known answers (`python -m fleetpilot eval --live`)")
     try:
