@@ -40,7 +40,7 @@ h1, h2, h3, [data-testid="stMetricValue"] { font-family: 'Space Grotesk', sans-s
   background: rgba(22,37,61,0.85); border: 1px solid #2E4566; border-radius: 14px;
   padding: 14px 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
-[data-testid="stMetricLabel"] p { color: #8FA3BF; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
+[data-testid="stMetricLabel"] p { color: #8FA3BF; font-size: 0.9rem; }
 .stTabs [data-baseweb="tab-list"] { gap: 4px; border-bottom: 1px solid #2E4566; }
 .stTabs [data-baseweb="tab"] { padding: 10px 16px; border-radius: 10px 10px 0 0; color: #B8C2D1; }
 .stTabs [aria-selected="true"] { background: #16253D; color: #F3F1EA; }
@@ -218,14 +218,14 @@ with tab_pipe:
     )
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Customers", f"{len(pipeline):,}")
-    c2.metric("Orders we expect in 6 months", f"{pipeline['score'].sum():,.0f}", help="Sum of all chances.")
-    c3.metric("Likely buyers (chance over 50%)", f"{(pipeline['score'] > 0.5).sum():,}")
+    c2.metric("Expected orders, 6 months", f"{pipeline['score'].sum():,.0f}", help="Sum of all chances.")
+    c3.metric("Likely buyers (over 50%)", f"{(pipeline['score'] > 0.5).sum():,}")
     c4.metric(
-        "Calling the top 10% reaches",
-        f"{gb['buyers_found_top10']:.0%} of buyers",
-        f"old rule (oldest fleets first): {rule['buyers_found_top10']:.0%}",
+        "Top 10% of list finds",
+        f"{gb['buyers_found_top10']:.0%}",
+        f"old rule: {rule['buyers_found_top10']:.0%}",
         delta_color="off",
-        help="Tested on past months the model never saw.",
+        help="Buyers reached by calling the top 10%, on months the model never saw. Old rule = oldest fleets first.",
     )
     f1, f2, f3 = st.columns(3)
     country = f1.multiselect("Country", sorted(pipeline["country"].unique()))
