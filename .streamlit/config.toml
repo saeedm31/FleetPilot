@@ -4,5 +4,22 @@ headless = true
 [browser]
 gatherUsageStats = false
 
+# Same look as the presentation deck: dark navy, orange accent, teal second colour.
 [theme]
-primaryColor = "#2F5BB7"
+base = "dark"
+primaryColor = "#F2A65A"
+backgroundColor = "#0B1424"
+secondaryBackgroundColor = "#16253D"
+textColor = "#F3F1EA"
+linkColor = "#7FD1C7"
+borderColor = "#2E4566"
+showWidgetBorder = true
+baseRadius = "0.75rem"
+font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+headingFont = "Space Grotesk:https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+codeFont = "JetBrains Mono:https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap"
+chartCategoricalColors = ["#F2A65A", "#7FD1C7", "#5B8DEF", "#E8735A", "#B9A6F2", "#8FA3BF", "#6FCF97", "#F2C35A"]
+
+[theme.sidebar]
+backgroundColor = "#0E1A2E"
+secondaryBackgroundColor = "#16253D"
