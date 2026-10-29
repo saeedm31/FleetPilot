@@ -108,4 +108,4 @@ def test_graph_drawing_and_run_path(built):
     path = run_path(AuditLog(s.audit_db).read(run_id=r.run_id))
     assert path == ["__start__", "agent", "tools", "agent", "check", "agent", "check", "__end__"]
     dot = to_dot(g, path)
-    assert dot.startswith("digraph") and "(x2)" in dot and "#D9692A" in dot
+    assert dot.startswith("digraph") and "(x2)" in dot and "#F2A65A" in dot

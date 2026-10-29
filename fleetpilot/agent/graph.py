@@ -323,13 +323,13 @@ def to_dot(struct: dict, path: list[str] | None = None) -> str:
     lines = [
         "digraph {",
         '  rankdir=LR; bgcolor="transparent"; pad=0.2; nodesep=0.5;',
-        '  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, color="#2F5BB7"];',
-        '  node [fillcolor="#EEF2FA", fontcolor="#1F2A44"];',
-        '  edge [fontname="Helvetica", fontsize=9, color="#8A94A6", fontcolor="#5A6478"];',
+        '  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, color="#2E4566"];',
+        '  node [fillcolor="#16253D", fontcolor="#F3F1EA"];',
+        '  edge [fontname="Helvetica", fontsize=9, color="#8FA3BF", fontcolor="#B8C2D1"];',
     ]
     for n in struct["nodes"]:
         shape = "oval" if n in ("__start__", END) else "box"
-        hot = ', fillcolor="#2F5BB7", fontcolor="white"' if n in path else ""
+        hot = ', fillcolor="#F2A65A", fontcolor="#0B1424", color="#F2A65A"' if n in path else ""
         label = _LABELS.get(n, n).replace("\n", "\\n")
         lines.append(f'  "{n}" [label="{label}", shape={shape}{hot}];')
     for a, b, conditional in struct["edges"]:
@@ -341,7 +341,7 @@ def to_dot(struct: dict, path: list[str] | None = None) -> str:
         if conditional:
             attrs.append("style=dashed")
         if count:
-            attrs += ['color="#D9692A"', "penwidth=2.5", 'fontcolor="#D9692A"']
+            attrs += ['color="#F2A65A"', "penwidth=2.5", 'fontcolor="#F2A65A"']
         lines.append(f'  "{a}" -> "{b}" [{", ".join(attrs)}];')
     lines.append("}")
     return "\n".join(lines)
