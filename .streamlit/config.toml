@@ -5,6 +5,7 @@ headless = true
 gatherUsageStats = false
 
 # Same look as the presentation deck: dark navy, orange accent, teal second colour.
+# Fonts (Space Grotesk, IBM Plex Sans) are loaded by the CSS in app.py.
 [theme]
 base = "dark"
 primaryColor = "#F2A65A"
@@ -15,9 +16,6 @@ linkColor = "#7FD1C7"
 borderColor = "#2E4566"
 showWidgetBorder = true
 baseRadius = "0.75rem"
-font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap"
-headingFont = "Space Grotesk:https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
-codeFont = "JetBrains Mono:https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap"
 chartCategoricalColors = ["#F2A65A", "#7FD1C7", "#5B8DEF", "#E8735A", "#B9A6F2", "#8FA3BF", "#6FCF97", "#F2C35A"]
 
 [theme.sidebar]
